@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        build_type: [Release, Debug]
+        include:
+          - os: ubuntu-latest
+            build_type: Release
+            extra_flags: "-DXLNS16_TABLE=ON"
+          - os: ubuntu-latest
+            build_type: Release
+            extra_flags: "-DXLNS32_IDEAL=ON -DXLNS16_IDEAL=ON"
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: >
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DXLNS_BUILD_TESTS=ON
+          -DXLNS_BUILD_BENCHMARKS=ON
+          -DXLNS_BUILD_EXAMPLES=ON
+          ${{ matrix.extra_flags || '' }}
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure --timeout 60

@@ -1,27 +1,175 @@
-# xlnscpp
-XLNSCPP: a C++ package for Logarithmic Number System eXperimentation
+# XLNSCPP
 
-This repository provides `xlns16.cpp` and `xlns32.cpp` along with a few programs that illustrate their use. They are based on similar math foundation (Gaussian logs, sb and db) as the Python xlns repository, but unlike the Python they use different internal storage format.
+**C++ Logarithmic Number System (LNS) Library — 16-bit & 32-bit**
 
-Unlike the Python xlns, here internal representation is not twos complement; it is offset by a constant (`xlns16_logsignmask` or `xlns32_logsignmask`). With the 16-bit format of `xlns16.cpp`, this is roughly similar to `bfloat16` (1 sign bit, 8 `int(log2)` bits, 7 `frac(log2)` bits). With the 32-bit format of `xlns32.cpp`, this is roughly similar to `float` (1 sign bit, 8 `int(log2)` bits, 23 `frac(log2)` bits). There is an exact representation of 0.0, but no subnormals or NaNs.
+[![CI](https://github.com/xlnsresearch/xlnscpp/actions/workflows/ci.yml/badge.svg)](https://github.com/xlnsresearch/xlnscpp/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-There are two ways to use this library: function calls (like `xlns16_add` or `xlns32_add`) that operate on integer representations (`typedef` as `xlns_16` or `xlns_32`) that represent the LNS value; or C++ overloaded operators that operate on an LNS class (either `xlns16_float` or `xlns32_float`).  The functions are a bit faster but overloading is easier. 
+XLNSCPP is a lightweight, header-installable C++ library for Logarithmic Number System arithmetic.  It provides 16-bit and 32-bit LNS types with overloaded operators (class API) and a low-level function API, suitable for research, embedded DSP, and as a backend for ML inference frameworks.
 
-All of the global symbols used begin with either `xlns16` and `xlns32`.  There are several compile-time options indicated by defining macros before including `xlns16.cpp` and `xlns32.cpp` in the main program.  Defining `xlns16_ideal` or `xlns32_ideal` causes the Gaussian Log computation to occur as accurately as possible by doing it in floating point. Omitting this gives a cotransformation/interpolation approximation for 32-bit (at a cost of a few 100K bytes) and a LPVIP approximation for 16-bit (when `xlns16_altopt` is also defined, a less accurate LPVIP algorithm is used).  Defining `xlns16_alt` or `xlns_32alt` uses an addition algorithm that reduces branching (in the sometimes false hope of improved performance on modern architectures).  Omitting this defaults to an equivalent algorithm that runs better on older architectures (like say 8086). Defining `xlns16_table` causes conversion to/from float to occur from tables.  When `xlns16_alt` is also defined, Gaussian Log computation comes from tables.  Both of these improve speed at the cost of less than one megabyte.  The file `xlns16testcase.h` itemizes the meaningful combinations of these options to help automate the regression testing of these options.
+---
 
-The Python and C++ code that begin with `sb` and `db` work together to test whether ideal and LPVIP Gaussian Log computations in `xlns16.cpp` match what the Python xlns library provides.
+## Features
 
-There is a sister repository, xlnscuda, which has related routines that work on CUDA devices.
+| Feature | 16-bit (`xlns16`) | 32-bit (`xlns32`) |
+|---|---|---|
+| Signed LNS type | ✅ | ✅ |
+| Operator-overloaded class | `xlns16_float` | `xlns32_float` |
+| Conversion to/from `float` | ✅ | ✅ |
+| Ideal sb/db (math.h) | `XLNS16_IDEAL` | `XLNS32_IDEAL` |
+| Table-based sb/db + conversion | `XLNS16_TABLE` | cotransformation (default) |
+| LPVIP / Mitchell approximation | default | — |
+| Math functions (sqrt, exp, log, pow, sin, cos, atan) | ✅ | ✅ |
 
- # References
+### Internal representation
 
-M. G. Arnold, et al. “Arithmetic cotransformations in the Real and
-Complex Logarithmic Number Systems,” _IEEE Trans. Comput._, vol. 47,
-no. 7, pp.777–786, July 1998.
+Unlike IEEE 754, the internal representation is **not** twos complement — it is offset by a constant (`xlns16_logsignmask` / `xlns32_logsignmask`).
 
+- **16-bit** — 1 sign + 8 `int(log₂)` + 7 `frac(log₂)` bits  (similar footprint to `bfloat16`)
+- **32-bit** — 1 sign + 8 `int(log₂)` + 23 `frac(log₂)` bits  (similar footprint to `float`)
 
-M. G. Arnold, "LPVIP: A Low-power ROM-Less ALU for Low-Precision LNS," 
-_14th International Workshop on Power and Timing Modeling, Optimization and Simulation_,
-LNCS 3254, pp.675-684, Santorini, Greece, Sept. 2004.
+Exact 0.0 is supported.  No subnormals or NaNs.
 
+---
 
+## Quick start
+
+```bash
+# clone
+git clone https://github.com/xlnsresearch/xlnscpp.git
+cd xlnscpp
+
+# build
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+
+# test
+ctest --test-dir build --output-on-failure
+```
+
+### Use in your project (CMake `find_package`)
+
+After installing the library (`cmake --install build`), you can use it from any CMake project:
+
+```cmake
+find_package(xlns REQUIRED)
+target_link_libraries(my_target PRIVATE xlns::xlns)
+```
+
+```cpp
+#include <xlns/xlns.h>      // convenience: includes xlns32.h + xlns16.h
+
+xlns32_float a(3.14f), b(2.71f);
+auto c = a + b;             // LNS addition
+```
+
+---
+
+## CMake options
+
+| Option | Default | Description |
+|---|---|---|
+| `XLNS_BUILD_TESTS` | `ON` | Build the test suite |
+| `XLNS_BUILD_BENCHMARKS` | `ON` | Build performance benchmarks |
+| `XLNS_BUILD_EXAMPLES` | `ON` | Build example programs |
+| `XLNS_INSTALL` | `ON` | Generate install targets |
+| `XLNS32_IDEAL` | `OFF` | Use math.h for 32-bit sb/db (most accurate) |
+| `XLNS32_ALT` | `OFF` | Alternative 32-bit addition algorithm |
+| `XLNS16_IDEAL` | `OFF` | Use math.h for 16-bit sb/db (most accurate) |
+| `XLNS16_ALT` | `ON` | Alternative 16-bit addition algorithm |
+| `XLNS16_ALTOPT` | `OFF` | Simplified LPVIP within alt (less accurate) |
+| `XLNS16_TABLE` | `OFF` | Use lookup tables for 16-bit conversions & sb/db |
+
+Example:
+```bash
+cmake -B build -DXLNS32_IDEAL=ON -DXLNS16_TABLE=ON
+```
+
+---
+
+## Directory structure
+
+```
+xlnscpp/
+├── CMakeLists.txt            # root build file
+├── cmake/
+│   └── xlnsConfig.cmake.in   # find_package support
+├── include/xlns/
+│   ├── xlns.h                # convenience header
+│   ├── xlns32.h              # 32-bit public API
+│   └── xlns16.h              # 16-bit public API
+├── src/
+│   ├── xlns32.cpp            # 32-bit implementation
+│   ├── xlns16.cpp            # 16-bit implementation
+│   └── tables/               # precomputed lookup tables
+│       ├── xlns32tbl.h
+│       ├── xlns16sbdbtbl.h
+│       ├── xlns16cvtbl.h
+│       └── xlns16revcvtbl.h
+├── test/
+│   ├── CMakeLists.txt
+│   ├── unit/                 # automated test suites (CTest)
+│   ├── benchmark/            # performance benchmarks
+│   └── cross-validation/     # Python ↔ C++ comparison tools
+├── examples/
+│   └── basic_usage.cpp
+├── docs/                     # design & API documentation
+├── legacy/                   # original flat-file sources
+└── .github/workflows/ci.yml
+```
+
+---
+
+## API overview
+
+### Class API (overloaded operators)
+
+```cpp
+xlns32_float a(3.14f), b(2.0f);
+xlns32_float c = a + b;       // addition
+xlns32_float d = a * b;       // multiplication (= log addition)
+xlns32_float e = a / b;       // division
+bool gt = (a > b);            // comparison
+
+// Math
+xlns32_float s = xlns32_sqrt(a);
+xlns32_float ex = xlns32_exp(a);
+xlns32_float l = xlns32_log(a);
+```
+
+### Function API
+
+```cpp
+xlns32 ra = fp2xlns32(3.14);
+xlns32 rb = fp2xlns32(2.0);
+xlns32 rc = xlns32_add(ra, rb);
+double result = xlns322fp(rc);
+```
+
+---
+
+## Cross-validation
+
+The `test/cross-validation/` directory contains CLI tools (`sb16`, `db16`, `sbmit16`, `dbmit16`) and Python scripts that compare Gaussian Log computations between this C++ library and the Python [xlns](https://github.com/xlnsresearch/xlns) library.
+
+```bash
+# after building
+cd build/test
+python3 sbtest.py    # compares ideal sb (C++ vs Python)
+python3 sblptest.py  # compares Mitchell/LPVIP sb (C++ vs Python)
+```
+
+---
+
+## References
+
+- M. G. Arnold, et al. "Arithmetic cotransformations in the Real and Complex Logarithmic Number Systems," *IEEE Trans. Comput.*, vol. 47, no. 7, pp. 777–786, July 1998.
+- M. G. Arnold, "LPVIP: A Low-power ROM-Less ALU for Low-Precision LNS," *14th International Workshop on Power and Timing Modeling, Optimization and Simulation*, LNCS 3254, pp. 675–684, Santorini, Greece, Sept. 2004.
+
+## Sister repository
+
+[xlnscuda](https://github.com/xlnsresearch/xlnscuda) — related routines for CUDA devices.
+
+## License
+
+MIT — Copyright © 1999–2025 Mark G. Arnold
