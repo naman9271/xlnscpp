@@ -550,16 +550,25 @@ inline void xlns16_batch_gelu(const xlns16 *a, xlns16 *c, size_t n) {
     }
 }
 
-// Softmax helper: subtract max for numerical stability, then exp
-inline void xlns16_softmax_exp(const xlns16 *a, xlns16 *c, size_t n) {
-    xlns16 maxval = xlns16_max_array(a, n);
-    for (size_t i = 0; i < n; i++) {
-        float fx = xlns162fp(a[i]) - xlns162fp(maxval);
-        c[i] = fp2xlns16(expf(fx));
-    }
+// exp and log in LNS
+
+#ifdef xlns16_table
+
+#include "xlns16exptbl.h"
+
+// exp(x) - computes e^x using direct table lookup
+inline xlns16 xlns16_exp(xlns16 x) {
+    return xlns16exptbl[x];
 }
 
-// exp and log in LNS
+#include "xlns16logtbl.h"
+
+// log(x) - computes natural log using direct table lookup
+inline xlns16 xlns16_log(xlns16 x) {
+    return xlns16logtbl[x];
+}
+
+#else
 
 // exp(x) - computes e^x
 inline xlns16 xlns16_exp(xlns16 x) {
@@ -572,6 +581,17 @@ inline xlns16 xlns16_log(xlns16 x) {
     float fx = xlns162fp(x);
     if (fx <= 0.0f) return xlns16_zero;
     return fp2xlns16(logf(fx));
+}
+
+#endif
+
+// Softmax helper: subtract max for numerical stability, then exp
+// Uses LNS subtraction and exp to stay in LNS domain
+inline void xlns16_softmax_exp(const xlns16 *a, xlns16 *c, size_t n) {
+    xlns16 maxval = xlns16_max_array(a, n);
+    for (size_t i = 0; i < n; i++) {
+        c[i] = xlns16_exp(xlns16_sub(a[i], maxval));
+    }
 }
 
 // exp2(x) - computes 2^x
