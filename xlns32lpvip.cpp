@@ -102,6 +102,20 @@ inline void xlns16_layernorm_lpvip32(const xlns16 *x, xlns16 *out,
     }
 }
 
+// RMSNorm: dst[i] = x[i] / sqrt(mean(x^2) + eps).
+// Same control flow as xlns16_rms_norm. Only the sum-of-squares reduction uses LPVIP
+// (xlns32_add_lpvip), matching layernorm variance accumulation.
+inline void xlns16_rms_norm_lpvip32(const xlns16 *x, xlns16 *dst, size_t n, xlns16 eps) {
+    if (n == 0) return;
+    xlns32 sum_sq = xlns32_zero;
+    for (size_t i = 0; i < n; i++)
+        sum_sq = xlns32_add_lpvip(sum_sq, ((xlns32)xlns16_square(x[i])) << 16);
+    xlns16 mean = xlns16_mul(sum_sq >> 16, fp2xlns16(1.0f / (float)n));
+    xlns16 inv_rms = xlns16_recip(xlns16_sqrt(xlns16_add(mean, eps)));
+    for (size_t i = 0; i < n; i++)
+        dst[i] = xlns16_mul(x[i], inv_rms);
+}
+
 // Softmax: exp(scale*a[i] - max) / sum(exp(scale*a[j] - max)).
 // Same control flow as xlns16_softmax. Scale, mask bias, and max-sub use
 // plain xlns16 ops; only the normalization sum uses xlns16_sum_lpvip32.
