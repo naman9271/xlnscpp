@@ -689,6 +689,18 @@ inline void xlns32_softmax_masked(const xlns32 *a, const xlns32 *mask, xlns32 *c
 }
 
 
+// RMSNorm: dst[i] = x[i] / sqrt(mean(x^2) + eps).
+inline void xlns32_rms_norm(const xlns32 *x, xlns32 *dst, size_t n, xlns32 eps) {
+    if (n == 0) return;
+    xlns32 sum_sq = xlns32_zero;
+    for (size_t i = 0; i < n; i++)
+        sum_sq = xlns32_add(sum_sq, xlns32_square(x[i]));
+    xlns32 mean = xlns32_mul(sum_sq, fp2xlns32(1.0f / (float)n));
+    xlns32 inv_rms = xlns32_recip(xlns32_sqrt(xlns32_add(mean, eps)));
+    for (size_t i = 0; i < n; i++)
+        dst[i] = xlns32_mul(x[i], inv_rms);
+}
+
 // Layer normalization: (x - mean) / sqrt(var + eps) * gamma + beta
 inline void xlns32_layernorm(const xlns32 *x, xlns32 *out,
                        const xlns32 *gamma, const xlns32 *beta,
