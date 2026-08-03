@@ -16,6 +16,8 @@ additive bias (e.g. ALiBi).
 
 `xlns16_layernorm(x,out,gamma,beta,n,eps)` computes the layernorm of `x` as `out`.
 
+`xlns16_rms_norm(x,dst,n,eps)` computes the RMS norm of `x` as `dst`.
+
 The above are implemented sequentially using `xlns16_add`.  A similar set of operations are available in `xlns32.cpp`.
 
 The problem with the above is that when the `xlns16` array being summed is long, it is likely the accumulator will become stuck at a highly incorrect value because the absolute value of the partial sum is much larger that the individual element being added.  In such a case, the most accurate result that `xlns16_add` can return is the unchanged value of the partial sum.  To overcome this, one could sum such `xlns16` values using an `xlns32` accumulator, but that is very expensive.  
@@ -34,6 +36,8 @@ and max-subtraction use plain `xlns16` ops; only the normalization sum uses
 
 `xlns16_layernorm_lpvip32(x,out,gamma,beta,n,eps)` 
 
+`xlns16_rms_norm_lpvip32(x,dst,n,eps)` 
+
 The other approach uses Monte-Carlo LNS (MCLNS), which is given in [https://digital-library.theiet.org/doi/10.1049/iet-cta.2010.0736] (and some earlier papers cited there).   The main purpose of MCLNS  is to sum a large sequence of `xlns16` values without having to keep an `xlns32` accumulator, which will make the hardware more efficient.  This is most successful the result is not near zero;
 it is less effective when the sum is near zero (catastrophic cancelation).   There are two alternative implementations of the following functions (`xlns16monte.cpp` and `xlns16monte_bylpvip.cpp`; the latter needs `xlns32lpvip.cpp` included first; the former does not need this):
 
@@ -49,5 +53,7 @@ max-subtraction use plain `xlns16` ops; only the normalization sum uses
 `xlns16_sum_monte`.
 
 `xlns16_layernorm_monte(x,out,gamma,beta,n,eps)` 
+
+`xlns16_rms_norm_monte(x,dst,n,eps)` 
 
 There is a test routine, `test16lpvip32monte.cpp` that illustrates these functions.
