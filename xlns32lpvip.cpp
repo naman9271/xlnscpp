@@ -15,9 +15,13 @@
   }
 #endif
 */
+  // Mitchell's approximation of 2^z for z <= 0. The shift count is computed
+  // from the signed value: with the unsigned type, -(z>>F) is a huge shift
+  // count, which is undefined behaviour, and GCC at -O2 miscompiles it.
   inline xlns32 xlns32_mitch(xlns32 z)
   {
-     return (((1<<xlns32_F)+(z&((1<<xlns32_F)-1)))>>(-(z>>xlns32_F)));
+     const int shift = -(((xlns32_signed)z)>>xlns32_F);
+     return (shift >= 32) ? 0 : (((1<<xlns32_F)+(z&((1<<xlns32_F)-1)))>>shift);
   }
 
 //need to define xlns32_aicasb if xlns32_add_lpvip is to give accurate summation
